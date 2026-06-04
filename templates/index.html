@@ -344,8 +344,10 @@ function prefillForm(data) {
   const c = data.contract || {};
   const e = data.excel    || {};
 
-  setVal('contract_no',     c.contract_no    || '');
-  setVal('invoice_no',      c.invoice_no     || (c.contract_no ? c.contract_no + 'V' : ''));
+  // DPL can also provide contract_no
+  const contractNo = c.contract_no || e.contract_no || '';
+  setVal('contract_no',  contractNo);
+  setVal('invoice_no',   c.invoice_no || (contractNo ? contractNo + 'V' : ''));
   setVal('buyer_name',      c.buyer_name     || '');
   setVal('buyer_address',   c.buyer_address  || '');
   setVal('buyer_ref',       c.buyer_ref      || '');

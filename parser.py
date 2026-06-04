@@ -1,17 +1,13 @@
 """
-Parse contract PDF and input Excel (ERP or 明细) into a structured dict.
+Parse contract PDF and input Excel (ERP / 明细 / DPL出库通知单) into a structured dict.
 """
 import re
 import io
-from typing import Optional
+import math
 
 
 # ── PDF parsing ─────────────────────────────────────────────────────────────
 def parse_contract_pdf(file_bytes: bytes) -> dict:
-    """
-    Extract key fields from a contract PDF.
-    Returns a dict with whatever could be parsed (caller fills in the rest).
-    """
     result = {}
     try:
         import fitz
@@ -21,26 +17,25 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
         return result
 
     if not full_text.strip():
-        return result   # scanned / image PDF — nothing to extract
+        return result   # scanned / image PDF
 
-    # Contract number  (handles "NO.:", "NO:", "NO." etc.)
+    # Contract number
     m = re.search(r'CONTRACT\s+NO\.?:?\s*([A-Z0-9]+)', full_text, re.I)
     if m:
         result['contract_no'] = m.group(1).strip()
         result['invoice_no']  = result['contract_no'] + 'V'
 
-    # Buyer name — line after "BUYER:" or "BUYER\s*:"
+    # Buyer name
     m = re.search(r'BUYER\s*:\s*([^\n]+)', full_text, re.I)
     if m:
         result['buyer_name'] = m.group(1).strip()
 
-    # Buyer address — line after "ADD:" that follows BUYER block
-    m = re.search(
-        r'BUYER\s*:[^\n]+\n\s*ADD\s*:\s*([^\n]+)', full_text, re.I)
+    # Buyer address
+    m = re.search(r'BUYER\s*:[^\n]+\n\s*ADD\s*:\s*([^\n]+)', full_text, re.I)
     if m:
         result['buyer_address'] = m.group(1).strip()
 
-    # NIT / RUC (buyer reference)
+    # NIT / RUC
     m = re.search(r'((?:NIT|RUC)\s*:\s*[\d\-]+)', full_text, re.I)
     if m:
         result['buyer_ref'] = m.group(1).strip()
@@ -50,8 +45,7 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
     if m:
         result['commodity'] = m.group(1).strip()
 
-    # Unit price — look for table row pattern: number  price  amount
-    # e.g.  1  1.20X1219  300  588  176,400.00
+    # Unit price from table row (e.g. "1  1.20X1219  300  588  176,400.00")
     m = re.search(
         r'\d+\s+[\d.X*]+\s+[\d,]+\s+([\d,]+(?:\.\d+)?)\s+[\d,]+(?:\.\d+)?',
         full_text)
@@ -61,27 +55,25 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
         except ValueError:
             pass
 
-    # Grade / specification line — look for known grade patterns
+    # Grade
     grade_pat = re.compile(
-        r'\b(SPCC[-\w]*|SAE\d+[A-Z]?|Q\d+[A-Z]?|[A-Z]{2,}\d+[-\w]*)\b')
+        r'\b(SPCC[-\w]*|SAE\d+[A-Z]?|S\d{3}[A-Z]{1,3}|Q\d+[A-Z]?|[A-Z]{2,}\d+[-\w]*)\b')
     grades_found = grade_pat.findall(full_text)
     if grades_found:
         result['detected_grade'] = grades_found[0]
 
-    # Price terms — CFR / FOB / CIF line
+    # Price terms
     m = re.search(r'PRICE\s+TERMS\s*:\s*([^\n]+)', full_text, re.I)
     if m:
         result['price_terms'] = m.group(1).strip().rstrip('.')
 
-    # Country of origin
     result['country_of_origin'] = 'CHINA'
-
     return result
 
 
-# ── Excel parsing ────────────────────────────────────────────────────────────
+# ── Excel helpers ────────────────────────────────────────────────────────────
 def _format_size(raw: str) -> str:
-    """'1.2*1219' → '1.20X1219',  '5.5' → '5.5'"""
+    """'1.2*1219' → '1.20X1219',  '3.28*1286' → '3.28X1286',  '5.5' → '5.5'"""
     s = str(raw).strip()
     if '*' in s:
         parts = s.split('*', 1)
@@ -94,33 +86,34 @@ def _format_size(raw: str) -> str:
 
 
 def _is_erp(df) -> bool:
-    """Check whether a DataFrame looks like an ERP export."""
     cols = [str(c) for c in df.columns]
-    return any('牌号' in c or 'grade' in c.lower() for c in cols) and \
-           any('重量' in c or 'weight' in c.lower() for c in cols)
+    return (any('牌号' in c for c in cols) and
+            any('重量' in c for c in cols))
 
 
-def _is_detail(df) -> bool:
-    """Check whether a DataFrame looks like a 明细 sheet."""
-    cols = ' '.join(str(c) for c in df.columns)
-    return '净重' in cols or '毛重' in cols
+def _is_dpl(df) -> bool:
+    """出库通知单 / 集港明细：前几行含 '出库通知单' 或列头含 '材质'+'毛重'+'卷号'"""
+    # Check first 10 rows for DPL title keywords
+    for i in range(min(10, len(df))):
+        row_str = ' '.join(str(v) for v in df.iloc[i])
+        if '出库通知单' in row_str or '集港明细' in row_str or 'PACKING LIST' in row_str:
+            return True
+    # Also check column headers row for characteristic columns
+    for i in range(min(10, len(df))):
+        vals = [str(v) for v in df.iloc[i]]
+        if ('材质' in vals or 'QUAL.' in vals) and ('毛重' in vals or '卷号' in vals):
+            return True
+    return False
 
 
+# ── Main entry point ────────────────────────────────────────────────────────
 def parse_excel_input(file_bytes: bytes, filename: str) -> dict:
     """
-    Return:
+    Detect format and parse.  Returns:
       {
-        'type': 'erp' | 'detail' | 'unknown',
-        'grades': [
-          {
-            'grade':          str,
-            'size':           str,
-            'quantity_mt':    float,   # net weight
-            'num_coils':      int,
-            'gross_weight_mt': float,
-            'unit_price':     float or None,
-          }, ...
-        ]
+        'type': 'erp' | 'detail' | 'dpl' | 'unknown',
+        'contract_no': str (DPL only),
+        'grades': [ {grade, size, quantity_mt, num_coils, gross_weight_mt, unit_price}, ... ]
       }
     """
     try:
@@ -128,72 +121,156 @@ def parse_excel_input(file_bytes: bytes, filename: str) -> dict:
     except ImportError:
         return {'type': 'unknown', 'grades': []}
 
-    # Read file
     fname = filename.lower()
     try:
         if fname.endswith('.xlsx'):
             df_raw = pd.read_excel(io.BytesIO(file_bytes), header=0, engine='openpyxl')
-        else:  # .xls
+        else:
             df_raw = pd.read_excel(io.BytesIO(file_bytes), header=None, engine='xlrd')
     except Exception as e:
         return {'type': 'unknown', 'grades': [], 'error': str(e)}
 
-    # ── ERP format detection ─────────────────────────────────────────────
     if fname.endswith('.xlsx') and _is_erp(df_raw):
         return _parse_erp(df_raw)
 
-    # ── 明细 (.xls) format ───────────────────────────────────────────────
+    if _is_dpl(df_raw):
+        return _parse_dpl(df_raw)
+
     return _parse_detail(df_raw)
 
 
+# ── ERP format ───────────────────────────────────────────────────────────────
 def _parse_erp(df) -> dict:
-    """
-    ERP columns: 物流号, 物料名称, 车号, 出库库房, 合同号, 客户名称,
-                 牌号, 钢板号, 简化后钢板号, 熔炉号, 质检批号, 简化后批号,
-                 重量, 厚, 宽, 长, 出库时间
-    Each row = 1 coil.
-    """
-    # Identify key columns by name
-    cols = list(df.columns)
-    grade_col  = next((c for c in cols if '牌号' in str(c)), None)
-    weight_col = next((c for c in cols if '重量' in str(c)), None)
-    thick_col  = next((c for c in cols if '厚'   in str(c)), None)
+    cols       = list(df.columns)
+    grade_col  = next((c for c in cols if '牌号'  in str(c)), None)
+    weight_col = next((c for c in cols if '重量'  in str(c)), None)
+    thick_col  = next((c for c in cols if '厚'    in str(c)), None)
 
     if grade_col is None or weight_col is None:
         return {'type': 'unknown', 'grades': []}
 
-    # Drop rows where grade is empty
     df = df.dropna(subset=[grade_col])
     df = df[df[grade_col].astype(str).str.strip() != '']
 
     grades_out = []
     for grade, grp in df.groupby(grade_col, sort=False):
         size_val = ''
-        if thick_col and str(grp[thick_col].iloc[0]).strip() not in ('', '0', '0.0', 'nan'):
-            size_val = _format_size(grp[thick_col].iloc[0])
+        if thick_col:
+            v = str(grp[thick_col].iloc[0]).strip()
+            if v not in ('', '0', '0.0', 'nan'):
+                size_val = _format_size(v)
 
-        net_weight = round(float(grp[weight_col].sum()), 3)
-        num_coils  = len(grp)
-
+        net = round(float(grp[weight_col].sum()), 3)
         grades_out.append({
             'grade':           str(grade).strip(),
             'size':            size_val,
-            'quantity_mt':     net_weight,
-            'num_coils':       num_coils,
-            'gross_weight_mt': net_weight,  # wire rod: gross = net
+            'quantity_mt':     net,
+            'num_coils':       len(grp),
+            'gross_weight_mt': net,
             'unit_price':      None,
         })
 
     return {'type': 'erp', 'grades': grades_out}
 
 
+# ── DPL / 出库通知单 format ──────────────────────────────────────────────────
+def _parse_dpl(df) -> dict:
+    """
+    Layout:
+      Row 0-2 : title rows
+      Row 3   : 外销合同号 (col 3/4 label, col 5 value)
+      Row 7   : Chinese column headers  → 规格 材质 件数 毛重 总重量 卷号 ...
+      Row 8   : English column headers  → SIZE QUAL. PCS WEIGHT COIL NO ...
+      Row 9+  : data rows (skip '小计' / '合计' rows)
+    """
+    result = {'type': 'dpl', 'grades': []}
+
+    # ── Extract contract number from header ──────────────────────────────
+    for i in range(min(8, len(df))):
+        row = list(df.iloc[i])
+        for j, v in enumerate(row):
+            if '外销合同号' in str(v) and j + 1 < len(row):
+                for k in range(j + 1, min(j + 6, len(row))):
+                    val = str(row[k]).strip()
+                    if val and val not in ('nan', '外销合同号'):
+                        result['contract_no'] = val
+                        break
+
+    # ── Find the data header row (contains '规格' and '材质') ─────────────
+    header_row = None
+    for i in range(min(12, len(df))):
+        vals = [str(v) for v in df.iloc[i]]
+        if '规格' in vals and ('材质' in vals or 'QUAL.' in vals):
+            header_row = i
+            break
+
+    if header_row is None:
+        return result
+
+    headers = [str(v).strip() for v in df.iloc[header_row]]
+
+    def col(keywords):
+        for kw in keywords:
+            for j, h in enumerate(headers):
+                if kw in h:
+                    return j
+        return None
+
+    size_col   = col(['规格', 'SIZE'])
+    grade_col  = col(['材质', 'QUAL'])
+    gross_col  = col(['毛重', 'WEIGHT'])
+    coil_col   = col(['卷号', 'COIL NO'])
+
+    if size_col is None or gross_col is None:
+        return result
+
+    # ── Parse data rows ──────────────────────────────────────────────────
+    groups: dict = {}   # key: (size, grade)
+
+    for i in range(header_row + 2, len(df)):   # skip English header row too
+        row = list(df.iloc[i])
+
+        # Skip subtotal / total rows
+        row_str = ' '.join(str(v) for v in row)
+        if '小计' in row_str or '合计' in row_str:
+            continue
+
+        # Must have a numeric gross weight
+        try:
+            gw = float(row[gross_col])
+            if math.isnan(gw) or gw <= 0:
+                continue
+        except (TypeError, ValueError, IndexError):
+            continue
+
+        size  = _format_size(str(row[size_col]).strip()) if size_col is not None else ''
+        grade = str(row[grade_col]).strip() if grade_col is not None else ''
+        if grade in ('nan', ''):
+            grade = ''
+
+        key = (size, grade)
+        if key not in groups:
+            groups[key] = {'coils': 0, 'gross': 0.0}
+        groups[key]['coils'] += 1
+        groups[key]['gross']  = round(groups[key]['gross'] + gw, 3)
+
+    for (size, grade), g in groups.items():
+        gross = round(g['gross'], 3)
+        result['grades'].append({
+            'grade':           grade,
+            'size':            size,
+            'quantity_mt':     gross,   # net = gross (no separate 净重 column)
+            'num_coils':       g['coils'],
+            'gross_weight_mt': gross,
+            'unit_price':      None,
+        })
+
+    return result
+
+
+# ── 明细 format ──────────────────────────────────────────────────────────────
 def _parse_detail(df) -> dict:
-    """
-    明细 format (xls).  Example header (row 1):
-      (blank), (blank), 卷号, 规格, 级别, 净重, 毛重
-    Data rows start at row 2; last row may be a total row.
-    """
-    # Find header row (first row that contains '净重' or '卷号')
+    # Find header row
     header_row = None
     for i, row in df.iterrows():
         vals = [str(v) for v in row]
@@ -202,12 +279,8 @@ def _parse_detail(df) -> dict:
             break
 
     if header_row is None:
-        # Fallback: assume structure by position
-        net_col   = 5
-        gross_col = 6
-        spec_col  = 3
+        net_col, gross_col, spec_col = 5, 6, 3
         start_row = 2
-        end_row   = len(df) - 1  # exclude last (total) row
     else:
         cols = list(df.iloc[header_row])
         def find_col(keywords):
@@ -219,11 +292,9 @@ def _parse_detail(df) -> dict:
         gross_col = find_col(['毛重'])
         spec_col  = find_col(['规格'])
         start_row = header_row + 1
-        end_row   = len(df)  # will filter total rows below
 
-    data_rows = df.iloc[start_row:end_row]
+    data_rows = df.iloc[start_row:]
 
-    # Drop total rows (detect by non-numeric net weight or 'coil' keyword)
     def is_data_row(row):
         try:
             v = row.iloc[net_col] if net_col is not None else None
@@ -235,19 +306,12 @@ def _parse_detail(df) -> dict:
             return False
 
     data_rows = data_rows[data_rows.apply(is_data_row, axis=1)]
-
     if data_rows.empty:
         return {'type': 'detail', 'grades': []}
 
-    # Group by spec (there may be multiple specs in one 明细)
-    def get_spec(row):
-        if spec_col is not None:
-            return str(row.iloc[spec_col]).strip()
-        return ''
-
     groups: dict = {}
     for _, row in data_rows.iterrows():
-        spec = get_spec(row)
+        spec = str(row.iloc[spec_col]).strip() if spec_col is not None else ''
         if spec not in groups:
             groups[spec] = {'coils': 0, 'net': 0.0, 'gross': 0.0}
         groups[spec]['coils'] += 1
@@ -263,14 +327,13 @@ def _parse_detail(df) -> dict:
                 pass
 
     grades_out = []
-    import math
     for spec, g in groups.items():
-        net   = round(g['net'],   3)
+        net = round(g['net'], 3)
         if math.isnan(net) or net == 0:
             continue
         gross = round(g['gross'], 3) if g['gross'] else net
         grades_out.append({
-            'grade':           '',              # from contract / user form
+            'grade':           '',
             'size':            _format_size(spec),
             'quantity_mt':     net,
             'num_coils':       g['coils'],
