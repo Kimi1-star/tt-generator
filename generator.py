@@ -53,14 +53,14 @@ def _thin():
 def _font(bold=False, size=10):
     return Font(name='Arial', bold=bold, size=size)
 
-def _align(h='left', wrap=True):
-    return Alignment(horizontal=h, vertical='center', wrap_text=wrap)
+def _align(h='left', v='center', wrap=True):
+    return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
 
 def _c(ws, row, col, value='', bold=False, size=10,
-       h='left', wrap=True, border=False, fmt=None):
+       h='left', v='center', wrap=True, border=False, fmt=None):
     c = ws.cell(row=row, column=col, value=value)
     c.font      = _font(bold, size)
-    c.alignment = _align(h, wrap)
+    c.alignment = _align(h, v, wrap)
     if border: c.border = _thin()
     if fmt:    c.number_format = fmt
     return c
@@ -115,16 +115,14 @@ def _build_ci(ws, d):
     _c(ws, r, 5, 'ORIGINAL', bold=True, h='right', wrap=False)
     r += 1
 
-    # ── Buyer (A:C) | DATE  →  tight row below: INVOICE NO.
+    # ── Buyer (A:C) | DATE + INVOICE NO. in one cell (top-aligned, 2 lines)
     buyer = [d.get('buyer_name', '')]
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
     _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
-    _c(ws, r, 5, f"DATE: {d['invoice_date']}", h='right', wrap=False)
+    date_inv = f"DATE: {d['invoice_date']}\nINVOICE NO.: {d['invoice_no']}"
+    _c(ws, r, 5, date_inv, h='right', v='top', wrap=True)
     _rh(ws, r, 48); r += 1
-
-    _c(ws, r, 5, f"INVOICE NO.: {d['invoice_no']}", h='right', wrap=False)
-    _rh(ws, r, 14); r += 1
 
     r += 2  # blank rows
 
@@ -217,7 +215,7 @@ def _build_ci(ws, d):
             _c(ws, r, 1, f'{lbl}:{val}' if lbl == 'SWIFT CODE' else f'{lbl}: {val}'); r += 1
 
     r += 2
-    _mg(ws, r, 2, r, 5); _c(ws, r, 2, COMPANY_NAME, bold=True, h='center', wrap=False)
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, h='center', wrap=False)
 
     _setup_a4(ws, r, ncols=5)
 
@@ -248,11 +246,10 @@ def _build_pl(ws, d):
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
     _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
-    _c(ws, r, 5, f"DATE: {d['invoice_date']}", h='right', wrap=False)
+    date_inv = f"DATE: {d['invoice_date']}\nINVOICE NO.: {d['invoice_no']}"
+    _c(ws, r, 5, date_inv, h='right', v='top', wrap=True)
     _rh(ws, r, 48); r += 1
 
-    _c(ws, r, 5, f"INVOICE NO.: {d['invoice_no']}", h='right', wrap=False)
-    _rh(ws, r, 14); r += 1
     r += 2
 
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'DESCRIPTION OF GOODS & SERVICES', bold=True); r += 1
@@ -291,7 +288,7 @@ def _build_pl(ws, d):
     r += 1
 
     r += 3
-    _mg(ws, r, 2, r, 5); _c(ws, r, 2, COMPANY_NAME, bold=True, h='center', wrap=False)
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, h='center', wrap=False)
     _setup_a4(ws, r, ncols=5)
 
 
@@ -321,11 +318,10 @@ def _build_sa(ws, d):
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
     _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
-    _c(ws, r, 4, f"DATE: {d['invoice_date']}", h='right', wrap=False)
+    date_inv = f"DATE: {d['invoice_date']}\nINVOICE NO.: {d['invoice_no']}"
+    _c(ws, r, 4, date_inv, h='right', v='top', wrap=True)
     _rh(ws, r, 48); r += 1
 
-    _c(ws, r, 4, f"INVOICE NO.: {d['invoice_no']}", h='right', wrap=False)
-    _rh(ws, r, 14); r += 1
     r += 2
 
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, 'SHIPMENT DETAILS', bold=True); r += 1
