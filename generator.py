@@ -97,29 +97,30 @@ def _build_ci(ws, d):
 
     r = 1
 
-    # ── Company header
-    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center')
+    # ── Company header (no wrap — keep on one line)
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center', wrap=False)
     _rh(ws, r, 18); r += 1
-    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center')
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center', wrap=False)
     _rh(ws, r, 14); r += 1
     r += 1  # blank
 
     # ── Title
-    _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'COMMERCIAL INVOICE', bold=True, size=14, h='center')
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'COMMERCIAL INVOICE', bold=True, size=14, h='center', wrap=False)
     _rh(ws, r, 22); r += 1
     r += 2  # blank rows
 
     # ── ORIGINAL / TO / Buyer
-    _c(ws, r, 5, 'ORIGINAL', bold=True, h='right'); r += 1
+    _c(ws, r, 5, 'ORIGINAL', bold=True, h='right', wrap=False); r += 1
     _c(ws, r, 1, 'TO:', bold=True); r += 1
 
     buyer = [d.get('buyer_name', '')]
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
-    _c(ws, r, 1, '\n'.join(buyer))
-    _c(ws, r, 5, f"DATE: {d['invoice_date']}", h='right')
+    # Merge A:C for buyer name so long names display in full
+    _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
+    _c(ws, r, 5, f"DATE: {d['invoice_date']}", h='right', wrap=False)
     _rh(ws, r, 50); r += 1
-    _c(ws, r, 5, f"INVOICE NO.: {d['invoice_no']}", h='right'); r += 1
+    _c(ws, r, 5, f"INVOICE NO.: {d['invoice_no']}", h='right', wrap=False); r += 1
 
     r += 3  # blank rows
 
@@ -225,26 +226,26 @@ def _build_pl(ws, d):
         ws.column_dimensions[col].width = w
 
     r = 1
-    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center')
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center', wrap=False)
     _rh(ws, r, 18); r += 1
-    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center')
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center', wrap=False)
     _rh(ws, r, 14); r += 1
     r += 1
 
-    _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'PACKING LIST', bold=True, size=14, h='center')
+    _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'PACKING LIST', bold=True, size=14, h='center', wrap=False)
     _rh(ws, r, 22); r += 1
     r += 2
 
-    _c(ws, r, 5, 'ORIGINAL', bold=True, h='right'); r += 1
+    _c(ws, r, 5, 'ORIGINAL', bold=True, h='right', wrap=False); r += 1
     _c(ws, r, 1, 'TO:', bold=True); r += 1
 
     buyer = [d.get('buyer_name', '')]
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
-    _c(ws, r, 1, '\n'.join(buyer))
-    _c(ws, r, 5, f"DATE: {d['invoice_date']}", h='right')
+    _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
+    _c(ws, r, 5, f"DATE: {d['invoice_date']}", h='right', wrap=False)
     _rh(ws, r, 50); r += 1
-    _c(ws, r, 5, f"INVOICE NO.: {d['invoice_no']}", h='right'); r += 1
+    _c(ws, r, 5, f"INVOICE NO.: {d['invoice_no']}", h='right', wrap=False); r += 1
     r += 3
 
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'DESCRIPTION OF GOODS & SERVICES', bold=True); r += 1
@@ -295,26 +296,26 @@ def _build_sa(ws, d):
         ws.column_dimensions[col].width = w
 
     r = 1
-    _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center')
+    _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center', wrap=False)
     _rh(ws, r, 18); r += 1
-    _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center')
+    _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center', wrap=False)
     _rh(ws, r, 14); r += 1
     r += 1
 
-    _mg(ws, r, 1, r, 4); _c(ws, r, 1, 'SHIPMENT ADVICE', bold=True, size=14, h='center')
+    _mg(ws, r, 1, r, 4); _c(ws, r, 1, 'SHIPMENT ADVICE', bold=True, size=14, h='center', wrap=False)
     _rh(ws, r, 22); r += 1
     r += 2
 
-    _c(ws, r, 4, 'ORIGINAL', bold=True, h='right'); r += 1
+    _c(ws, r, 4, 'ORIGINAL', bold=True, h='right', wrap=False); r += 1
     _c(ws, r, 1, 'TO:', bold=True); r += 1
 
     buyer = [d.get('buyer_name', '')]
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
-    _c(ws, r, 1, '\n'.join(buyer))
-    _c(ws, r, 4, f"DATE: {d['invoice_date']}", h='right')
+    _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
+    _c(ws, r, 4, f"DATE: {d['invoice_date']}", h='right', wrap=False)
     _rh(ws, r, 50); r += 1
-    _c(ws, r, 4, f"INVOICE NO.: {d['invoice_no']}", h='right'); r += 1
+    _c(ws, r, 4, f"INVOICE NO.: {d['invoice_no']}", h='right', wrap=False); r += 1
     r += 3
 
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, 'SHIPMENT DETAILS', bold=True); r += 1
