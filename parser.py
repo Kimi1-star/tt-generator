@@ -6,6 +6,25 @@ import io
 import math
 
 
+# ── OCR fallback ────────────────────────────────────────────────────────────
+def _ocr_pdf(file_bytes: bytes) -> str:
+    """Render each page to image and run Tesseract OCR."""
+    try:
+        import fitz
+        import pytesseract
+        from PIL import Image
+
+        doc = fitz.open(stream=file_bytes, filetype='pdf')
+        texts = []
+        for page in doc:
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
+            texts.append(pytesseract.image_to_string(img, lang='eng'))
+        return '\n'.join(texts)
+    except Exception:
+        return ''
+
+
 # ── PDF parsing ─────────────────────────────────────────────────────────────
 def parse_contract_pdf(file_bytes: bytes) -> dict:
     result = {}
@@ -17,7 +36,9 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
         return result
 
     if not full_text.strip():
-        return result   # scanned / image PDF
+        full_text = _ocr_pdf(file_bytes)   # scanned / image PDF → OCR
+    if not full_text.strip():
+        return result
 
     # Contract number
     m = re.search(r'CONTRACT\s+NO\.?:?\s*([A-Z0-9]+)', full_text, re.I)
