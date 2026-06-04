@@ -101,7 +101,7 @@ def _build_ci(ws, d):
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center', wrap=False)
     _rh(ws, r, 18); r += 1
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center', wrap=False)
-    _rh(ws, r, 14); r += 1
+    _rh(ws, r, 20); r += 1
     r += 1  # blank
 
     # ── Title
@@ -213,7 +213,7 @@ def _build_ci(ws, d):
             _c(ws, r, 1, f'{lbl}:{val}' if lbl == 'SWIFT CODE' else f'{lbl}: {val}'); r += 1
 
     r += 2
-    _c(ws, r, 3, COMPANY_NAME, bold=True, h='center')
+    _mg(ws, r, 2, r, 5); _c(ws, r, 2, COMPANY_NAME, bold=True, h='center', wrap=False)
 
     _setup_a4(ws, r, ncols=5)
 
@@ -229,7 +229,7 @@ def _build_pl(ws, d):
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center', wrap=False)
     _rh(ws, r, 18); r += 1
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center', wrap=False)
-    _rh(ws, r, 14); r += 1
+    _rh(ws, r, 20); r += 1
     r += 1
 
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, 'PACKING LIST', bold=True, size=14, h='center', wrap=False)
@@ -284,7 +284,7 @@ def _build_pl(ws, d):
     r += 1
 
     r += 3
-    _c(ws, r, 3, COMPANY_NAME, bold=True, h='center')
+    _mg(ws, r, 2, r, 5); _c(ws, r, 2, COMPANY_NAME, bold=True, h='center', wrap=False)
     _setup_a4(ws, r, ncols=5)
 
 
@@ -299,7 +299,7 @@ def _build_sa(ws, d):
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_NAME, bold=True, size=11, h='center', wrap=False)
     _rh(ws, r, 18); r += 1
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_ADDR, size=9, h='center', wrap=False)
-    _rh(ws, r, 14); r += 1
+    _rh(ws, r, 20); r += 1
     r += 1
 
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, 'SHIPMENT ADVICE', bold=True, size=14, h='center', wrap=False)
@@ -335,7 +335,7 @@ def _build_sa(ws, d):
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, f"{eta}: {d.get('eta_etd_date','')}"); r += 1
 
     r += 15
-    _c(ws, r, 2, COMPANY_NAME, bold=True, h='center')
+    _mg(ws, r, 1, r, 4); _c(ws, r, 1, COMPANY_NAME, bold=True, h='center', wrap=False)
     _setup_a4(ws, r, ncols=4)
 
 
