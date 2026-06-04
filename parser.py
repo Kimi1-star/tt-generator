@@ -40,8 +40,8 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
     if not full_text.strip():
         return result
 
-    # Contract number
-    m = re.search(r'CONTRACT\s+NO\.?:?\s*([A-Z0-9]+)', full_text, re.I)
+    # Contract number  (e.g. 26YCR017, 26YWR001 — may start with digits)
+    m = re.search(r'CONTRACT\s+NO\.?:?\s*([A-Z0-9]{5,})', full_text, re.I)
     if m:
         result['contract_no'] = m.group(1).strip()
         result['invoice_no']  = result['contract_no'] + 'V'
@@ -56,8 +56,8 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
     if m:
         result['buyer_address'] = m.group(1).strip()
 
-    # NIT / RUC
-    m = re.search(r'((?:NIT|RUC)\s*:\s*[\d\-]+)', full_text, re.I)
+    # NIT / RUC / FAX ID (buyer tax/reference number)
+    m = re.search(r'((?:NIT|RUC|FAX\s*ID|TAX\s*ID|VAT)\s*:\s*[\d\-]+)', full_text, re.I)
     if m:
         result['buyer_ref'] = m.group(1).strip()
 
