@@ -1,9 +1,5 @@
 services:
   - type: web
     name: tt-generator
-    runtime: python
-    buildCommand: apt-get update -qq && apt-get install -y --no-install-recommends tesseract-ocr && pip install -r requirements.txt
-    startCommand: gunicorn app:app
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+    runtime: docker
+    dockerfilePath: ./Dockerfile
