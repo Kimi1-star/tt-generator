@@ -312,9 +312,18 @@ async function doParse() {
   let data;
   try {
     const resp = await fetch('/parse', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      showError(`服务器错误 ${resp.status}，请重试`);
+      return;
+    }
+    const ct = resp.headers.get('content-type') || '';
+    if (!ct.includes('json')) {
+      showError('服务器返回非JSON响应，可能正在启动（约30秒），请稍后重试');
+      return;
+    }
     data = await resp.json();
   } catch(e) {
-    showError('网络错误：' + e.message);
+    showError('解析超时或网络错误，请稍后重试（扫描件OCR需要约10秒）');
     return;
   } finally {
     document.getElementById('spinner').style.display = 'none';

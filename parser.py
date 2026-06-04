@@ -8,7 +8,10 @@ import math
 
 # ── OCR fallback ────────────────────────────────────────────────────────────
 def _ocr_pdf(file_bytes: bytes) -> str:
-    """Render each page to image and run Tesseract OCR."""
+    """Render the first 2 pages to images and run Tesseract OCR.
+    Contract header info (number, buyer, commodity, price) is always on page 1.
+    Limiting to 2 pages keeps response time under Render's 30-second proxy timeout.
+    """
     try:
         import fitz
         import pytesseract
@@ -16,7 +19,7 @@ def _ocr_pdf(file_bytes: bytes) -> str:
 
         doc = fitz.open(stream=file_bytes, filetype='pdf')
         texts = []
-        for page in doc:
+        for page in doc[:2]:   # only first 2 pages
             pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
             img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
             texts.append(pytesseract.image_to_string(img, lang='eng'))
