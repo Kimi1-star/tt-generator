@@ -13,6 +13,17 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32 MB
 
 
+@app.errorhandler(500)
+def internal_error(e):
+    import traceback
+    return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({'error': '文件超过 32MB 限制'}), 413
+
+
 @app.route('/')
 def index():
     return render_template('index.html')

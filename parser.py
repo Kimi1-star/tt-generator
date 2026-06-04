@@ -8,9 +8,9 @@ import math
 
 # ── OCR fallback ────────────────────────────────────────────────────────────
 def _ocr_pdf(file_bytes: bytes) -> str:
-    """Render the first 2 pages to images and run Tesseract OCR.
-    Contract header info (number, buyer, commodity, price) is always on page 1.
-    Limiting to 2 pages keeps response time under Render's 30-second proxy timeout.
+    """OCR only the first page (grayscale, 2x) to stay within 512MB memory limit.
+    All key contract fields (number, buyer, commodity, price) are on page 1.
+    Grayscale cuts memory to 1/3 of RGB; single page avoids OOM on free-tier hosts.
     """
     try:
         import fitz
@@ -18,12 +18,11 @@ def _ocr_pdf(file_bytes: bytes) -> str:
         from PIL import Image
 
         doc = fitz.open(stream=file_bytes, filetype='pdf')
-        texts = []
-        for page in doc[:2]:   # only first 2 pages
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-            img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
-            texts.append(pytesseract.image_to_string(img, lang='eng'))
-        return '\n'.join(texts)
+        if doc.page_count == 0:
+            return ''
+        pix = doc[0].get_pixmap(matrix=fitz.Matrix(2, 2), colorspace=fitz.csGRAY)
+        img = Image.frombytes('L', [pix.width, pix.height], pix.samples)
+        return pytesseract.image_to_string(img, lang='eng')
     except Exception:
         return ''
 
