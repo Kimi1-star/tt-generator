@@ -50,13 +50,13 @@ def _thin():
     s = Side(style='thin')
     return Border(left=s, right=s, top=s, bottom=s)
 
-def _font(bold=False, size=10):
+def _font(bold=False, size=9):
     return Font(name='Arial', bold=bold, size=size)
 
 def _align(h='left', v='center', wrap=True):
     return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
 
-def _c(ws, row, col, value='', bold=False, size=10,
+def _c(ws, row, col, value='', bold=False, size=9,
        h='left', v='center', wrap=True, border=False, fmt=None):
     c = ws.cell(row=row, column=col, value=value)
     c.font      = _font(bold, size)
@@ -110,18 +110,18 @@ def _build_ci(ws, d):
     _rh(ws, r, 22); r += 1
     r += 2  # blank rows
 
-    # ── TO: + ORIGINAL on same row
+    # ── TO: + ORIGINAL on same row  (ORIGINAL spans D:E)
     _c(ws, r, 1, 'TO:', bold=True)
-    _c(ws, r, 5, 'ORIGINAL', bold=True, h='right', wrap=False)
+    _mg(ws, r, 4, r, 5); _c(ws, r, 4, 'ORIGINAL', bold=True, h='right', wrap=False)
     r += 1
 
-    # ── Buyer (A:C) | DATE + INVOICE NO. in one cell (top-aligned, 2 lines)
+    # ── Buyer (A:C) | DATE + INVOICE NO. merged D:E, top-right
     buyer = [d.get('buyer_name', '')]
     if d.get('buyer_address'): buyer.append('ADD: ' + d['buyer_address'])
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
     _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
     date_inv = f"DATE: {d['invoice_date']}\nINVOICE NO.: {d['invoice_no']}"
-    _c(ws, r, 5, date_inv, h='right', v='top', wrap=True)
+    _mg(ws, r, 4, r, 5); _c(ws, r, 4, date_inv, h='right', v='top', wrap=True)
     _rh(ws, r, 48); r += 1
 
     r += 2  # blank rows
@@ -239,7 +239,7 @@ def _build_pl(ws, d):
     r += 2
 
     _c(ws, r, 1, 'TO:', bold=True)
-    _c(ws, r, 5, 'ORIGINAL', bold=True, h='right', wrap=False)
+    _mg(ws, r, 4, r, 5); _c(ws, r, 4, 'ORIGINAL', bold=True, h='right', wrap=False)
     r += 1
 
     buyer = [d.get('buyer_name', '')]
@@ -247,7 +247,7 @@ def _build_pl(ws, d):
     if d.get('buyer_ref'):     buyer.append(d['buyer_ref'])
     _mg(ws, r, 1, r, 3); _c(ws, r, 1, '\n'.join(buyer))
     date_inv = f"DATE: {d['invoice_date']}\nINVOICE NO.: {d['invoice_no']}"
-    _c(ws, r, 5, date_inv, h='right', v='top', wrap=True)
+    _mg(ws, r, 4, r, 5); _c(ws, r, 4, date_inv, h='right', v='top', wrap=True)
     _rh(ws, r, 48); r += 1
 
     r += 2
@@ -311,7 +311,7 @@ def _build_sa(ws, d):
     r += 2
 
     _c(ws, r, 1, 'TO:', bold=True)
-    _c(ws, r, 4, 'ORIGINAL', bold=True, h='right', wrap=False)
+    _c(ws, r, 4, 'ORIGINAL', bold=True, h='right', v='top', wrap=False)
     r += 1
 
     buyer = [d.get('buyer_name', '')]
