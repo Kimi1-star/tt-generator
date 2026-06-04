@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TT 文件生成器 — Sharpmax</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background: #f5f7fb; font-family: 'Segoe UI', sans-serif; }
+  .header-bar { background: #1a3a5c; color: #fff; padding: 18px 32px; }
+  .header-bar h1 { font-size: 1.35rem; font-weight: 600; margin: 0; }
+  .header-bar p  { font-size: 0.82rem; opacity: .75; margin: 0; }
+  .step-badge { display:inline-flex; align-items:center; justify-content:center;
+    width:28px; height:28px; border-radius:50%; font-weight:700; font-size:.85rem; }
+  .step-active   { background:#1a3a5c; color:#fff; }
+  .step-done     { background:#28a745; color:#fff; }
+  .step-inactive { background:#dee2e6; color:#6c757d; }
+  .step-line { flex:1; height:2px; background:#dee2e6; margin:0 6px; }
+  .card { border:none; box-shadow:0 2px 12px rgba(0,0,0,.07); border-radius:10px; }
+  .card-header { background:#fff; border-bottom:1px solid #e9ecef;
+    font-weight:600; font-size:.95rem; border-radius:10px 10px 0 0 !important; }
+  .drop-area { border:2px dashed #b0bec5; border-radius:8px; padding:32px;
+    text-align:center; cursor:pointer; transition:.2s; background:#fafbfc; }
+  .drop-area:hover, .drop-area.drag-over { border-color:#1a3a5c; background:#eef2f7; }
+  .drop-area .bi { font-size:2rem; color:#90a4ae; }
+  .file-badge { display:inline-block; background:#e3f0ff; color:#1a3a5c;
+    border-radius:6px; padding:3px 10px; font-size:.82rem; margin-top:8px; }
+  .grades-table th { background:#f1f3f5; font-weight:600; font-size:.83rem; }
+  .grades-table td input { border:1px solid #dee2e6; border-radius:4px;
+    padding:3px 7px; width:100%; font-size:.85rem; }
+  .btn-primary   { background:#1a3a5c; border-color:#1a3a5c; }
+  .btn-primary:hover { background:#22527a; border-color:#22527a; }
+  .btn-success   { background:#28a745; border-color:#28a745; }
+  .section-title { font-weight:600; font-size:.9rem; color:#495057;
+    text-transform:uppercase; letter-spacing:.04em; margin-bottom:.75rem; }
+  .alert-parse { font-size:.83rem; }
+  #spinner { display:none; }
+  .required-star { color:#dc3545; }
+</style>
+</head>
+<body>
+
+<div class="header-bar">
+  <h1><i class="bi bi-file-earmark-spreadsheet me-2"></i>TT 文件生成器</h1>
+  <p>Sharpmax International — Commercial Invoice / Packing List / Shipment Advice</p>
+</div>
+
+<div class="container py-4" style="max-width:960px;">
+
+  <!-- Step indicator -->
+  <div class="d-flex align-items-center mb-4 px-2">
+    <span id="s1badge" class="step-badge step-active">1</span>
+    <span class="small ms-2 fw-semibold" id="s1lbl">上传文件</span>
+    <div class="step-line"></div>
+    <span id="s2badge" class="step-badge step-inactive">2</span>
+    <span class="small ms-2" id="s2lbl" style="color:#6c757d">填写信息</span>
+    <div class="step-line"></div>
+    <span id="s3badge" class="step-badge step-inactive">3</span>
+    <span class="small ms-2" id="s3lbl" style="color:#6c757d">下载 TT</span>
+  </div>
+
+  <!-- ─── STEP 1: Upload ──────────────────────────────────────────────── -->
+  <div id="step1">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-file-pdf text-danger me-1"></i>合同 PDF</div>
+          <div class="card-body">
+            <div class="drop-area" id="dropContract" onclick="document.getElementById('inContract').click()">
+              <i class="bi bi-cloud-upload"></i>
+              <p class="mb-0 mt-2 small text-muted">点击或拖放上传合同 PDF</p>
+              <div id="contractName"></div>
+            </div>
+            <input type="file" id="inContract" accept=".pdf" style="display:none"
+                   onchange="handleFileSelect(this,'contract')">
+            <div class="form-text mt-2 text-muted">支持文字型 PDF（自动提取合同号、买方、品名等）</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-table text-success me-1"></i>明细 / ERP Excel</div>
+          <div class="card-body">
+            <div class="drop-area" id="dropExcel" onclick="document.getElementById('inExcel').click()">
+              <i class="bi bi-cloud-upload"></i>
+              <p class="mb-0 mt-2 small text-muted">点击或拖放上传 Excel（.xls / .xlsx）</p>
+              <div id="excelName"></div>
+            </div>
+            <input type="file" id="inExcel" accept=".xls,.xlsx" style="display:none"
+                   onchange="handleFileSelect(this,'excel')">
+            <div class="form-text mt-2 text-muted">ERP 导出 (.xlsx) 或人工明细 (.xls)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="text-center mt-4">
+      <button class="btn btn-primary px-5" id="btnParse" onclick="doParse()">
+        <span id="spinner" class="spinner-border spinner-border-sm me-2"></span>
+        <i class="bi bi-cpu me-1"></i>解析文件 &amp; 填写表单
+      </button>
+    </div>
+    <div id="parseError" class="alert alert-danger alert-parse mt-3 d-none"></div>
+  </div>
+
+  <!-- ─── STEP 2: Form ────────────────────────────────────────────────── -->
+  <div id="step2" style="display:none;">
+    <div id="parseInfo" class="alert alert-success alert-parse mb-3"></div>
+
+    <form id="ttForm" onsubmit="return false;">
+
+      <!-- ── Section 1: Basic -->
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-info-circle me-1"></i>基本信息</div>
+        <div class="card-body row g-3">
+          <div class="col-md-4">
+            <label class="form-label">合同号 <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="contract_no"
+                   placeholder="26YCR017">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Invoice No. <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="invoice_no"
+                   placeholder="26YCR017V">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">发票日期 <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="invoice_date"
+                   placeholder="APR. 28, 2026">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 2: Buyer -->
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-person-lines-fill me-1"></i>买方信息</div>
+        <div class="card-body row g-3">
+          <div class="col-md-6">
+            <label class="form-label">买方名称 <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="buyer_name"
+                   placeholder="FOUR BELLS RESOURCES INC.">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">买方地址</label>
+            <input type="text" class="form-control form-control-sm" id="buyer_address"
+                   placeholder="7TH FLOOR CAPITAL PLAZA BUILDING, ...">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">税号 (NIT / RUC)</label>
+            <input type="text" class="form-control form-control-sm" id="buyer_ref"
+                   placeholder="NIT: 1562559-1-659300">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 3: Goods -->
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-box-seam me-1"></i>货物信息</div>
+        <div class="card-body row g-3">
+          <div class="col-12">
+            <label class="form-label">品名 (COMMODITY) <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="commodity"
+                   placeholder="COLD ROLLED STEEL SHEET IN COIL">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">价格条款 (PRICE TERMS) <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="price_terms"
+                   placeholder="CFR FO RIO HAINA, DOMINICAN REPUBLIC BY BULK VESSEL">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">原产国</label>
+            <input type="text" class="form-control form-control-sm" id="country_of_origin"
+                   value="CHINA">
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="has_prepayment"
+                     onchange="togglePrepayment()">
+              <label class="form-check-label fw-semibold" for="has_prepayment">
+                有预付款 (Down Payment)
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4" id="prepaymentBlock" style="display:none;">
+            <label class="form-label">预付款金额 (USD) <span class="required-star">*</span></label>
+            <input type="number" class="form-control form-control-sm" id="prepayment"
+                   placeholder="86790.00" step="0.01">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 4: Grades table -->
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-grid-3x3-gap me-1"></i>货物明细（可编辑）</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addGradeRow()">
+            <i class="bi bi-plus-circle me-1"></i>添加行
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm grades-table mb-0" id="gradesTable">
+              <thead>
+                <tr>
+                  <th style="width:140px">规格/牌号</th>
+                  <th style="width:110px">尺寸 (MM)</th>
+                  <th style="width:110px">净重 (MT)</th>
+                  <th style="width:80px">卷数</th>
+                  <th style="width:110px">毛重 (MT)</th>
+                  <th style="width:110px">单价 (USD/MT)</th>
+                  <th style="width:40px"></th>
+                </tr>
+              </thead>
+              <tbody id="gradesTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Section 5: Shipping & Finance -->
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-ship me-1"></i>运输 &amp; 财务信息</div>
+        <div class="card-body row g-3">
+          <div class="col-md-6">
+            <label class="form-label">船名 <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="vessel"
+                   placeholder="XIN HAI TONG 27 V.A26012">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">装货港 <span class="required-star">*</span></label>
+            <input type="text" class="form-control form-control-sm" id="loading_port"
+                   placeholder="TIANJIN PORT IN CHINA">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">ETA / ETD</label>
+            <select class="form-select form-select-sm" id="eta_etd_label">
+              <option value="ETD">ETD（预计离港）</option>
+              <option value="ETA">ETA（预计到港）</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">日期</label>
+            <input type="text" class="form-control form-control-sm" id="eta_etd_date"
+                   placeholder="MAY 13, 2026">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">运费 FREIGHT (USD) <span class="required-star">*</span>
+              <small class="text-muted">(FOB = 总额 − 运费)</small>
+            </label>
+            <input type="number" class="form-control form-control-sm" id="freight"
+                   placeholder="18057.84" step="0.01">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Generate button -->
+      <div class="text-center mt-3 mb-5 d-flex gap-3 justify-content-center">
+        <button type="button" class="btn btn-outline-secondary px-4" onclick="goBack()">
+          <i class="bi bi-arrow-left me-1"></i>重新上传
+        </button>
+        <button type="button" class="btn btn-success px-5" id="btnGenerate" onclick="doGenerate()">
+          <i class="bi bi-file-earmark-arrow-down me-1"></i>生成并下载 TT 文件
+        </button>
+      </div>
+    </form>
+  </div><!-- /step2 -->
+
+</div><!-- /container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const files = { contract: null, excel: null };
+
+// ── Drag & drop ─────────────────────────────────────────────────────────────
+function setupDrop(dropId, inputId, type) {
+  const drop = document.getElementById(dropId);
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag-over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault();
+    drop.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) { files[type] = f; showFileName(type, f.name); }
+  });
+}
+setupDrop('dropContract', 'inContract', 'contract');
+setupDrop('dropExcel',    'inExcel',    'excel');
+
+function handleFileSelect(input, type) {
+  if (input.files[0]) {
+    files[type] = input.files[0];
+    showFileName(type, input.files[0].name);
+  }
+}
+
+function showFileName(type, name) {
+  const el = document.getElementById(type === 'contract' ? 'contractName' : 'excelName');
+  el.innerHTML = `<span class="file-badge"><i class="bi bi-check-circle-fill text-success me-1"></i>${name}</span>`;
+}
+
+// ── Parse ───────────────────────────────────────────────────────────────────
+async function doParse() {
+  document.getElementById('parseError').classList.add('d-none');
+  document.getElementById('spinner').style.display = 'inline-block';
+  document.getElementById('btnParse').disabled = true;
+
+  const fd = new FormData();
+  if (files.contract) fd.append('contract', files.contract);
+  if (files.excel)    fd.append('excel',    files.excel);
+
+  let data;
+  try {
+    const resp = await fetch('/parse', { method: 'POST', body: fd });
+    data = await resp.json();
+  } catch(e) {
+    showError('网络错误：' + e.message);
+    return;
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('btnParse').disabled = false;
+  }
+
+  prefillForm(data);
+  goStep2(data);
+}
+
+function prefillForm(data) {
+  const c = data.contract || {};
+  const e = data.excel    || {};
+
+  setVal('contract_no',     c.contract_no    || '');
+  setVal('invoice_no',      c.invoice_no     || (c.contract_no ? c.contract_no + 'V' : ''));
+  setVal('buyer_name',      c.buyer_name     || '');
+  setVal('buyer_address',   c.buyer_address  || '');
+  setVal('buyer_ref',       c.buyer_ref      || '');
+  setVal('commodity',       c.commodity      || '');
+  setVal('price_terms',     c.price_terms    || '');
+  setVal('country_of_origin', c.country_of_origin || 'CHINA');
+
+  // Detect default grade for 明细 case
+  const detectedGrade = c.detected_grade || '';
+
+  const grades = e.grades || [];
+  populateGrades(grades, c.unit_price, detectedGrade);
+
+  const msgs = [];
+  if (c.contract_no) msgs.push(`✅ 合同号 <strong>${c.contract_no}</strong>`);
+  if (c.buyer_name)  msgs.push(`✅ 买方 <strong>${c.buyer_name}</strong>`);
+  if (c.commodity)   msgs.push(`✅ 品名已提取`);
+  if (c.unit_price)  msgs.push(`✅ 单价 <strong>${c.unit_price} USD/MT</strong>`);
+  if (grades.length) msgs.push(`✅ 明细 ${grades.length} 行（共 ${
+    grades.reduce((s,g) => s + (g.quantity_mt||0), 0).toFixed(3)} MT）`);
+
+  const infoEl = document.getElementById('parseInfo');
+  if (msgs.length) {
+    infoEl.innerHTML = '自动识别：' + msgs.join(' &nbsp;|&nbsp; ');
+    infoEl.style.display = '';
+  } else {
+    infoEl.style.display = 'none';
+  }
+}
+
+function setVal(id, val) {
+  const el = document.getElementById(id);
+  if (el && val) el.value = val;
+}
+
+function goStep2(data) {
+  document.getElementById('step1').style.display = 'none';
+  document.getElementById('step2').style.display = '';
+  // update step badges
+  document.getElementById('s1badge').className = 'step-badge step-done';
+  document.getElementById('s2badge').className = 'step-badge step-active';
+  document.getElementById('s2lbl').style.color  = '';
+}
+
+function goBack() {
+  document.getElementById('step1').style.display = '';
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('s1badge').className = 'step-badge step-active';
+  document.getElementById('s2badge').className = 'step-badge step-inactive';
+}
+
+function showError(msg) {
+  const el = document.getElementById('parseError');
+  el.textContent = msg;
+  el.classList.remove('d-none');
+}
+
+// ── Grades table ─────────────────────────────────────────────────────────────
+function populateGrades(grades, defaultPrice, defaultGrade) {
+  const tbody = document.getElementById('gradesTbody');
+  tbody.innerHTML = '';
+  if (grades.length === 0) {
+    addGradeRow(defaultGrade, '', '', '', '', defaultPrice);
+  } else {
+    grades.forEach(g => addGradeRow(
+      g.grade || defaultGrade,
+      g.size  || '',
+      g.quantity_mt   != null ? g.quantity_mt : '',
+      g.num_coils     != null ? g.num_coils   : '',
+      g.gross_weight_mt != null ? g.gross_weight_mt : '',
+      g.unit_price    != null ? g.unit_price  : (defaultPrice || '')
+    ));
+  }
+}
+
+function addGradeRow(grade='', size='', qty='', coils='', gross='', price='') {
+  const tbody = document.getElementById('gradesTbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text"   value="${grade}" placeholder="SPCC-SD"></td>
+    <td><input type="text"   value="${size}"  placeholder="1.20X1219"></td>
+    <td><input type="number" value="${qty}"   placeholder="310.502" step="0.001"></td>
+    <td><input type="number" value="${coils}" placeholder="28"      step="1"></td>
+    <td><input type="number" value="${gross}" placeholder="311.342" step="0.001"></td>
+    <td><input type="number" value="${price}" placeholder="588.00"  step="0.01"></td>
+    <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
+         onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
+  tbody.appendChild(tr);
+}
+
+function togglePrepayment() {
+  const checked = document.getElementById('has_prepayment').checked;
+  document.getElementById('prepaymentBlock').style.display = checked ? '' : 'none';
+}
+
+// ── Generate ─────────────────────────────────────────────────────────────────
+async function doGenerate() {
+  // Collect grades
+  const grades = [];
+  document.querySelectorAll('#gradesTbody tr').forEach(tr => {
+    const inputs = tr.querySelectorAll('input');
+    grades.push({
+      grade:           inputs[0].value.trim(),
+      size:            inputs[1].value.trim(),
+      quantity_mt:     parseFloat(inputs[2].value) || 0,
+      num_coils:       parseInt(inputs[3].value)   || 0,
+      gross_weight_mt: parseFloat(inputs[4].value) || 0,
+      unit_price:      parseFloat(inputs[5].value) || 0,
+    });
+  });
+
+  const payload = {
+    contract_no:      document.getElementById('contract_no').value.trim(),
+    invoice_no:       document.getElementById('invoice_no').value.trim(),
+    invoice_date:     document.getElementById('invoice_date').value.trim(),
+    buyer_name:       document.getElementById('buyer_name').value.trim(),
+    buyer_address:    document.getElementById('buyer_address').value.trim(),
+    buyer_ref:        document.getElementById('buyer_ref').value.trim(),
+    commodity:        document.getElementById('commodity').value.trim(),
+    price_terms:      document.getElementById('price_terms').value.trim(),
+    country_of_origin:document.getElementById('country_of_origin').value.trim(),
+    has_prepayment:   document.getElementById('has_prepayment').checked,
+    prepayment:       parseFloat(document.getElementById('prepayment').value) || 0,
+    vessel:           document.getElementById('vessel').value.trim(),
+    loading_port:     document.getElementById('loading_port').value.trim(),
+    eta_etd_label:    document.getElementById('eta_etd_label').value,
+    eta_etd_date:     document.getElementById('eta_etd_date').value.trim(),
+    freight:          parseFloat(document.getElementById('freight').value) || 0,
+    grades:           grades,
+  };
+
+  // Basic validation
+  const required = ['contract_no','invoice_no','invoice_date','buyer_name',
+                     'commodity','price_terms','vessel','loading_port'];
+  const missing  = required.filter(k => !payload[k]);
+  if (missing.length) {
+    alert('请填写必填项：' + missing.join(', '));
+    return;
+  }
+  if (grades.length === 0 || grades.every(g => !g.grade)) {
+    alert('请至少填写一行货物明细（包括规格/牌号）');
+    return;
+  }
+
+  const btn = document.getElementById('btnGenerate');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>生成中…';
+
+  try {
+    const resp = await fetch('/generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      alert('生成失败：' + (err.error || resp.statusText));
+      return;
+    }
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${payload.contract_no} TT文件.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    // Step 3
+    document.getElementById('s3badge').className = 'step-badge step-done';
+    document.getElementById('s3lbl').style.color  = '';
+  } catch(e) {
+    alert('网络错误：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-file-earmark-arrow-down me-1"></i>生成并下载 TT 文件';
+  }
+}
+</script>
+</body>
+</html>
