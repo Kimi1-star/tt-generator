@@ -325,7 +325,22 @@ async function doParse() {
   goStep2(data);
 }
 
+function clearForm() {
+  ['contract_no','invoice_no','invoice_date','buyer_name','buyer_address',
+   'buyer_ref','commodity','price_terms','vessel','loading_port',
+   'eta_etd_date','freight','prepayment'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('country_of_origin').value = 'CHINA';
+  document.getElementById('has_prepayment').checked = false;
+  document.getElementById('prepaymentBlock').style.display = 'none';
+  document.getElementById('gradesTbody').innerHTML = '';
+}
+
 function prefillForm(data) {
+  clearForm();
+
   const c = data.contract || {};
   const e = data.excel    || {};
 
@@ -338,9 +353,7 @@ function prefillForm(data) {
   setVal('price_terms',     c.price_terms    || '');
   setVal('country_of_origin', c.country_of_origin || 'CHINA');
 
-  // Detect default grade for 明细 case
   const detectedGrade = c.detected_grade || '';
-
   const grades = e.grades || [];
   populateGrades(grades, c.unit_price, detectedGrade);
 
@@ -363,7 +376,7 @@ function prefillForm(data) {
 
 function setVal(id, val) {
   const el = document.getElementById(id);
-  if (el && val) el.value = val;
+  if (el) el.value = val ?? '';
 }
 
 function goStep2(data) {
