@@ -4,6 +4,11 @@ Parse contract PDF and input Excel (ERP / 明细 / DPL出库通知单) into a st
 import re
 import io
 import math
+import os
+import subprocess
+import tempfile
+import zipfile
+import xml.etree.ElementTree as ET
 
 
 # ── OCR fallback ────────────────────────────────────────────────────────────
@@ -27,18 +32,11 @@ def _ocr_pdf(file_bytes: bytes) -> str:
         return ''
 
 
-# ── PDF parsing ─────────────────────────────────────────────────────────────
-def parse_contract_pdf(file_bytes: bytes) -> dict:
+# ── Contract text parsing ───────────────────────────────────────────────────
+def _parse_contract_text(full_text: str) -> dict:
     result = {}
-    try:
-        import fitz
-        doc = fitz.open(stream=file_bytes, filetype='pdf')
-        full_text = '\n'.join(page.get_text() for page in doc)
-    except Exception:
-        return result
-
-    if not full_text.strip():
-        full_text = _ocr_pdf(file_bytes)   # scanned / image PDF → OCR
+    full_text = (full_text or '').replace('\xa0', ' ')
+    full_text = re.sub(r'[ \t]+', ' ', full_text)
     if not full_text.strip():
         return result
 
@@ -92,6 +90,69 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
 
     result['country_of_origin'] = 'CHINA'
     return result
+
+
+# ── PDF / Word parsing ─────────────────────────────────────────────────────
+def parse_contract_pdf(file_bytes: bytes) -> dict:
+    try:
+        import fitz
+        doc = fitz.open(stream=file_bytes, filetype='pdf')
+        full_text = '\n'.join(page.get_text() for page in doc)
+    except Exception:
+        return {}
+
+    if not full_text.strip():
+        full_text = _ocr_pdf(file_bytes)   # scanned / image PDF → OCR
+    return _parse_contract_text(full_text)
+
+
+def parse_contract_word(file_bytes: bytes, filename: str = '') -> dict:
+    """Parse Word contracts without OCR. Supports .docx directly and .doc via antiword."""
+    fname = (filename or '').lower()
+    text = ''
+
+    if fname.endswith('.docx'):
+        try:
+            parts = []
+            with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+                xml_bytes = zf.read('word/document.xml')
+            root = ET.fromstring(xml_bytes)
+            ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+            for para in root.iterfind('.//w:p', ns):
+                line = ''.join(t.text or '' for t in para.iterfind('.//w:t', ns)).strip()
+                if line:
+                    parts.append(line)
+            text = '\n'.join(parts)
+        except Exception:
+            text = ''
+    elif fname.endswith('.doc'):
+        # Binary .doc files need an external reader. Docker installs antiword.
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.doc') as tmp:
+                tmp.write(file_bytes)
+                tmp_path = tmp.name
+            try:
+                proc = subprocess.run(
+                    ['antiword', tmp_path],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    timeout=20,
+                )
+                text = proc.stdout.decode('utf-8', errors='ignore')
+            finally:
+                os.unlink(tmp_path)
+        except Exception:
+            text = ''
+
+    return _parse_contract_text(text)
+
+
+def parse_contract_file(file_bytes: bytes, filename: str) -> dict:
+    fname = (filename or '').lower()
+    if fname.endswith(('.doc', '.docx')):
+        return parse_contract_word(file_bytes, filename)
+    return parse_contract_pdf(file_bytes)
 
 
 # ── Excel helpers ────────────────────────────────────────────────────────────

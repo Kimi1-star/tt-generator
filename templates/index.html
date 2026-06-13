@@ -65,16 +65,16 @@
     <div class="row g-3">
       <div class="col-md-6">
         <div class="card h-100">
-          <div class="card-header"><i class="bi bi-file-pdf text-danger me-1"></i>合同 PDF</div>
+          <div class="card-header"><i class="bi bi-file-earmark-text text-danger me-1"></i>合同文件</div>
           <div class="card-body">
             <div class="drop-area" id="dropContract" onclick="document.getElementById('inContract').click()">
               <i class="bi bi-cloud-upload"></i>
-              <p class="mb-0 mt-2 small text-muted">点击或拖放上传合同 PDF</p>
+              <p class="mb-0 mt-2 small text-muted">点击或拖放上传合同（PDF / Word）</p>
               <div id="contractName"></div>
             </div>
-            <input type="file" id="inContract" accept=".pdf" style="display:none"
+            <input type="file" id="inContract" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none"
                    onchange="handleFileSelect(this,'contract')">
-            <div class="form-text mt-2 text-muted">支持文字型 PDF（自动提取合同号、买方、品名等）</div>
+            <div class="form-text mt-2 text-muted">Word 直接读取文字；PDF 先提取文字，扫描件再 OCR</div>
           </div>
         </div>
       </div>

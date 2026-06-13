@@ -6,7 +6,7 @@ import json
 from flask import Flask, render_template, request, jsonify, send_file
 from io import BytesIO
 
-from parser import parse_contract_pdf, parse_excel_input
+from parser import parse_contract_file, parse_excel_input
 from generator import generate_tt_excel
 
 app = Flask(__name__)
@@ -40,7 +40,8 @@ def parse_files():
     contract_file = request.files.get('contract')
     if contract_file and contract_file.filename:
         try:
-            result['contract'] = parse_contract_pdf(contract_file.read())
+            result['contract'] = parse_contract_file(
+                contract_file.read(), contract_file.filename)
         except Exception as e:
             result['contract_error'] = str(e)
 
