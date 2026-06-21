@@ -77,11 +77,31 @@ def _parse_contract_text(full_text: str) -> dict:
             pass
 
     # Grade
+    composite_grades = re.findall(
+        r'\b([A-Z]{2,}\d*[A-Z]*(?:-[A-Z0-9]+)?/[A-Z]{2,}\d*[A-Z]*(?:-[A-Z0-9]+)?)\b',
+        full_text, re.I)
+    m = next((g for g in composite_grades if '-' in g or any(ch.isdigit() for ch in g)), None)
     grade_pat = re.compile(
         r'\b(SPCC[-\w]*|SAE\d+[A-Z]?|S\d{3}[A-Z]{1,3}|Q\d+[A-Z]?|[A-Z]{2,}\d+[-\w]*)\b')
-    grades_found = grade_pat.findall(full_text)
-    if grades_found:
-        result['detected_grade'] = grades_found[0]
+    if m:
+        result['detected_grade'] = m.strip().upper()
+    else:
+        grades_found = grade_pat.findall(full_text)
+        if grades_found:
+            result['detected_grade'] = grades_found[0]
+
+    # Contract total quantity (used for prepayment allocation)
+    m = re.search(r'TOTAL\s+QUANTITY\s*:?\s*([\d,]+(?:\.\d+)?)\s*MT', full_text, re.I)
+    if m:
+        try:
+            result['contract_total_quantity'] = float(m.group(1).replace(',', ''))
+        except ValueError:
+            pass
+
+    # Shipping mark
+    m = re.search(r'SHIPPING\s+MARK\s*:?\s*([^\n]+)', full_text, re.I)
+    if m:
+        result['shipping_mark'] = m.group(1).strip()
 
     # Price terms
     m = re.search(r'PRICE\s+TERMS\s*:\s*([^\n]+)', full_text, re.I)
@@ -375,6 +395,7 @@ def _parse_detail(df) -> dict:
         net_col   = find_col(['净重'])
         gross_col = find_col(['毛重'])
         spec_col  = find_col(['规格'])
+        grade_col = find_col(['牌号', '材质', '钢种', 'GRADE', 'QUAL'])
         start_row = header_row + 1
 
     data_rows = df.iloc[start_row:]
@@ -396,28 +417,32 @@ def _parse_detail(df) -> dict:
     groups: dict = {}
     for _, row in data_rows.iterrows():
         spec = str(row.iloc[spec_col]).strip() if spec_col is not None else ''
-        if spec not in groups:
-            groups[spec] = {'coils': 0, 'net': 0.0, 'gross': 0.0}
-        groups[spec]['coils'] += 1
+        grade = str(row.iloc[grade_col]).strip() if 'grade_col' in locals() and grade_col is not None else ''
+        if grade.lower() == 'nan':
+            grade = ''
+        key = (spec, grade)
+        if key not in groups:
+            groups[key] = {'coils': 0, 'net': 0.0, 'gross': 0.0}
+        groups[key]['coils'] += 1
         try:
-            groups[spec]['net'] = round(groups[spec]['net'] + float(row.iloc[net_col]), 3)
+            groups[key]['net'] = round(groups[key]['net'] + float(row.iloc[net_col]), 3)
         except (TypeError, ValueError):
             pass
         if gross_col is not None:
             try:
-                groups[spec]['gross'] = round(
-                    groups[spec]['gross'] + float(row.iloc[gross_col]), 3)
+                groups[key]['gross'] = round(
+                    groups[key]['gross'] + float(row.iloc[gross_col]), 3)
             except (TypeError, ValueError):
                 pass
 
     grades_out = []
-    for spec, g in groups.items():
+    for (spec, grade), g in groups.items():
         net = round(g['net'], 3)
         if math.isnan(net) or net == 0:
             continue
         gross = round(g['gross'], 3) if g['gross'] else net
         grades_out.append({
-            'grade':           '',
+            'grade':           grade,
             'size':            _format_size(spec),
             'quantity_mt':     net,
             'num_coils':       g['coils'],

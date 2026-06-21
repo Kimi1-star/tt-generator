@@ -17,6 +17,51 @@ BANK_ADDR    = "NO.288 QINGCHUN ROAD HANG ZHOU,ZHEJIANG,CHINA"
 SWIFT_CODE   = "ZJCBCN2N"
 ACCOUNT_NO   = "NRA3310010711420100000726"
 
+
+def _num(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _is_thailand_trade(d):
+    text = ' '.join(str(d.get(k, '')) for k in (
+        'buyer_name', 'buyer_address', 'price_terms', 'loading_port'))
+    return any(x in text.upper() for x in ('THAI', 'THAILAND', '泰国'))
+
+
+def _display_grade(grade):
+    """For split contract grades like SPCC-SD/CS-B, keep concrete detail grade when present."""
+    return str(grade or '').strip()
+
+
+def _amount_decimals(grades):
+    exact_amounts = [
+        _num(g.get('quantity_mt')) * _num(g.get('unit_price'))
+        for g in grades
+    ]
+    sum_of_2dp_rows = round(sum(round(a, 2) for a in exact_amounts), 2)
+    total_2dp = round(sum(exact_amounts), 2)
+    return 3 if sum_of_2dp_rows != total_2dp else 2
+
+
+def _prepayment_deduction(d, total_qty):
+    prepayment = round(_num(d.get('prepayment')), 2)
+    if not (d.get('has_prepayment') and prepayment):
+        return 0.0
+
+    contract_qty = _num(d.get('contract_total_quantity'))
+    if contract_qty <= 0:
+        return prepayment
+
+    ratio = total_qty / contract_qty if contract_qty else 0
+    if 0.9 <= ratio <= 1.1:
+        return prepayment
+
+    # For partial shipments outside tolerance, allocate the prepayment by shipment share.
+    return round(max(0.0, min(prepayment, prepayment * ratio)), 2)
+
 # ── Number → English words ──────────────────────────────────────────────────
 _ONES = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT',
          'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN',
@@ -132,6 +177,8 @@ def _build_ci(ws, d):
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"SALES CONTRACT NO.: {d['contract_no']}"); r += 1
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"COUNTRY OF ORIGIN: {d.get('country_of_origin','CHINA')}"); r += 1
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"PRICE TERMS: {d['price_terms']}"); r += 1
+    if _is_thailand_trade(d) and d.get('shipping_mark'):
+        _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"SHIPPING MARK: {d['shipping_mark']}"); r += 1
     r += 1  # blank
 
     # ── Table headers (2 rows)
@@ -144,18 +191,23 @@ def _build_ci(ws, d):
     r += 2
 
     # ── Data rows
-    total_qty = total_amt = 0.0
+    amount_decimals = _amount_decimals(d['grades'])
+    amount_fmt = '#,##0.000' if amount_decimals == 3 else '#,##0.00'
+    total_qty = 0.0
+    total_amt_exact = 0.0
     for g in d['grades']:
         qty   = round(float(g['quantity_mt']), 3)
         price = round(float(g['unit_price']),  2)
-        amt   = round(qty * price, 2)
+        amt_exact = qty * price
+        amt   = round(amt_exact, amount_decimals)
         total_qty = round(total_qty + qty, 3)
-        total_amt = round(total_amt + amt, 2)
+        total_amt_exact += amt_exact
         for col, (v, f) in enumerate(zip(
-                [g['grade'], str(g['size']), qty, price, amt],
-                [None, None, '#,##0.000', '#,##0.00', '#,##0.00']), 1):
+                [_display_grade(g['grade']), str(g['size']), qty, price, amt],
+                [None, None, '#,##0.000', '#,##0.00', amount_fmt]), 1):
             _c(ws, r, col, v, h='right' if col >= 3 else 'center', border=True, fmt=f)
         r += 1
+    total_amt = round(total_amt_exact, 2)
 
     # ── TOTAL row — TOTAL label in col A (same column as GRADE)
     for col, (v, f) in enumerate(zip(
@@ -169,11 +221,11 @@ def _build_ci(ws, d):
     fob     = round(total_amt - float(d.get('freight') or 0), 2)
     freight = float(d.get('freight') or 0)
 
-    if d.get('has_prepayment') and d.get('prepayment'):
-        prepayment = round(float(d['prepayment']), 2)
-        balance    = round(total_amt - prepayment, 2)
-        _c(ws, r, 1, 'DEDUCTION (DOWN PAYMENT)', bold=True)
-        _c(ws, r, 5, prepayment, h='right', fmt='#,##0.00'); r += 1
+    deduction = _prepayment_deduction(d, total_qty)
+    if deduction:
+        balance    = round(total_amt - deduction, 2)
+        _c(ws, r, 1, 'DEDUCTION (PREPAYMENT)', bold=True)
+        _c(ws, r, 5, deduction, h='right', fmt='#,##0.00'); r += 1
         _c(ws, r, 1, 'BALANCE', bold=True)
         _c(ws, r, 5, balance, bold=True, h='right', fmt='#,##0.00'); r += 1
         say_amount = balance
@@ -256,6 +308,8 @@ def _build_pl(ws, d):
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"COMMODITY: {d['commodity']}"); r += 1
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"SALES CONTRACT NO.: {d['contract_no']}"); r += 1
     _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"COUNTRY OF ORIGIN: {d.get('country_of_origin','CHINA')}"); r += 1
+    if _is_thailand_trade(d) and d.get('shipping_mark'):
+        _mg(ws, r, 1, r, 5); _c(ws, r, 1, f"SHIPPING MARK: {d['shipping_mark']}"); r += 1
     r += 1
 
     # Table header
@@ -275,7 +329,7 @@ def _build_pl(ws, d):
         total_net    = round(total_net   + net,   3)
         total_gross  = round(total_gross + gross, 3)
         for col, (v, f) in enumerate(zip(
-                [g['grade'], str(g['size']), coils, net, gross],
+                [_display_grade(g['grade']), str(g['size']), coils, net, gross],
                 [None, None, '#,##0', '#,##0.000', '#,##0.000']), 1):
             _c(ws, r, col, v, h='right' if col >= 3 else 'center', border=True, fmt=f)
         r += 1
@@ -328,7 +382,7 @@ def _build_sa(ws, d):
     _mg(ws, r, 1, r, 4); _c(ws, r, 1, f"COMMODITY: {d['commodity']}"); r += 1
 
     total_qty = round(sum(float(g['quantity_mt']) for g in d['grades']), 3)
-    total_amt = round(sum(float(g['quantity_mt']) * float(g['unit_price'])
+    total_amt = round(sum(_num(g.get('quantity_mt')) * _num(g.get('unit_price'))
                          for g in d['grades']), 2)
 
     _c(ws, r, 1, 'QUANTITY LOADED: MT')
