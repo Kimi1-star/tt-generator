@@ -122,7 +122,9 @@ def parse_contract_pdf(file_bytes: bytes) -> dict:
         return {}
 
     if not full_text.strip():
-        full_text = _ocr_pdf(file_bytes)   # scanned / image PDF → OCR
+        return {
+            'scan_warning': 'PDF 是扫描件，无法直接读取文字；请上传 Word 版本或手动填写合同信息。'
+        }
     return _parse_contract_text(full_text)
 
 

@@ -382,6 +382,7 @@ function prefillForm(data) {
   populateGrades(grades, c.unit_price, detectedGrade);
 
   const msgs = [];
+  if (c.scan_warning) msgs.push(`⚠️ ${c.scan_warning}`);
   if (c.contract_no) msgs.push(`✅ 合同号 <strong>${c.contract_no}</strong>`);
   if (c.buyer_name)  msgs.push(`✅ 买方 <strong>${c.buyer_name}</strong>`);
   if (c.commodity)   msgs.push(`✅ 品名已提取`);
