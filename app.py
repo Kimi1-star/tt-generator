@@ -5,12 +5,22 @@ import os
 import json
 from flask import Flask, render_template, request, jsonify, send_file
 from io import BytesIO
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from parser import parse_contract_file, parse_excel_input
 from generator import generate_tt_excel
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32 MB
+
+MONTHS = ['JAN.', 'FEB.', 'MAR.', 'APR.', 'MAY', 'JUN.',
+          'JUL.', 'AUG.', 'SEP.', 'OCT.', 'NOV.', 'DEC.']
+
+
+def today_invoice_date():
+    now = datetime.now(ZoneInfo('Asia/Shanghai'))
+    return f"{MONTHS[now.month - 1]} {now.day:02d}, {now.year}"
 
 
 @app.errorhandler(500)
@@ -64,6 +74,7 @@ def generate():
     data = request.get_json(force=True)
     if not data:
         return jsonify({'error': 'No data provided'}), 400
+    data['invoice_date'] = today_invoice_date()
 
     try:
         xlsx_bytes = generate_tt_excel(data)

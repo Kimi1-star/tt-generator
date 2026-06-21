@@ -113,20 +113,15 @@
       <div class="card mb-3">
         <div class="card-header"><i class="bi bi-info-circle me-1"></i>基本信息</div>
         <div class="card-body row g-3">
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label">合同号 <span class="required-star">*</span></label>
             <input type="text" class="form-control form-control-sm" id="contract_no"
                    placeholder="26YCR017">
           </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label">Invoice No. <span class="required-star">*</span></label>
             <input type="text" class="form-control form-control-sm" id="invoice_no"
                    placeholder="26YCR017V">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">发票日期 <span class="required-star">*</span></label>
-            <input type="text" class="form-control form-control-sm" id="invoice_date"
-                   placeholder="APR. 28, 2026">
           </div>
         </div>
       </div>
@@ -345,7 +340,7 @@ async function doParse() {
 }
 
 function clearForm() {
-  ['contract_no','invoice_no','invoice_date','buyer_name','buyer_address',
+  ['contract_no','invoice_no','buyer_name','buyer_address',
    'buyer_ref','commodity','price_terms','vessel','loading_port',
    'eta_etd_date','freight','prepayment','contract_total_quantity',
    'shipping_mark'].forEach(id => {
@@ -483,7 +478,6 @@ async function doGenerate() {
   const payload = {
     contract_no:      document.getElementById('contract_no').value.trim(),
     invoice_no:       document.getElementById('invoice_no').value.trim(),
-    invoice_date:     document.getElementById('invoice_date').value.trim(),
     buyer_name:       document.getElementById('buyer_name').value.trim(),
     buyer_address:    document.getElementById('buyer_address').value.trim(),
     buyer_ref:        document.getElementById('buyer_ref').value.trim(),
@@ -503,7 +497,7 @@ async function doGenerate() {
   };
 
   // Basic validation
-  const required = ['contract_no','invoice_no','invoice_date','buyer_name',
+  const required = ['contract_no','invoice_no','buyer_name',
                      'commodity','price_terms','vessel','loading_port'];
   const missing  = required.filter(k => !payload[k]);
   if (missing.length) {
